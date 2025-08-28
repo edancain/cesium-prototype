@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System.Collections;
+using System.Linq;
 
 public class AircraftManager : MonoBehaviour
 {
@@ -24,6 +25,8 @@ public class AircraftManager : MonoBehaviour
     private Dictionary<string, Aircraft_Controller> activeAircraft = new Dictionary<string, Aircraft_Controller>();
     private Dictionary<string, float> lastUpdateTime = new Dictionary<string, float>();
     private bool aircraftCreated = false;
+    private CesiumForUnity.CesiumGeoreference georeference;
+    private Transform georeferenceTransform;
 
     void Start()
     {
@@ -33,17 +36,42 @@ public class AircraftManager : MonoBehaviour
             return;
         }
 
+        // Find the georeference once at start
+        georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>();
+        if (georeference == null)
+        {
+            Debug.LogError("CesiumGeoreference not found! Aircraft positioning won't work correctly.");
+            Debug.LogError("Please create a GameObject with CesiumGeoreference component in your scene.");
+        }
+        else
+        {
+            georeferenceTransform = georeference.transform;
+            Debug.Log($"Found CesiumGeoreference: {georeference.name}");
+        }
+
         // Find Kafka consumer if not assigned
         if (kafkaConsumer == null)
         {
             kafkaConsumer = FindObjectOfType<WorkingKafkaConsumer>();
         }
 
-        // Subscribe to Kafka consumer events
+        // Subscribe to Kafka consumer events BEFORE it starts
         if (kafkaConsumer != null)
         {
             kafkaConsumer.OnAircraftDataReceived += HandleKafkaAircraftData;
             Debug.Log($"AircraftManager: Subscribed to WorkingKafkaConsumer events");
+
+            // DON'T restart if already running - this breaks Cesium initialization
+            // Just ensure we're subscribed to the events
+            if (!kafkaConsumer.IsConnected())
+            {
+                Debug.Log("AircraftManager: Kafka consumer not running, starting it");
+                kafkaConsumer.StartConsumer();
+            }
+            else
+            {
+                Debug.Log("AircraftManager: Kafka consumer already running - using existing connection");
+            }
         }
         else if (!useSimulatedData)
         {
@@ -53,10 +81,10 @@ public class AircraftManager : MonoBehaviour
 
         // Start the update coroutine
         StartCoroutine(UpdateAircraftData());
-        
+
         // Start cleanup routine for stale aircraft
         StartCoroutine(CleanupStaleAircraft());
-        
+
         Debug.Log("Aircraft Manager started. Use simulated data: " + useSimulatedData);
     }
 
@@ -107,6 +135,38 @@ public class AircraftManager : MonoBehaviour
     // Handle real ASTERIX data from Kafka
     private void HandleKafkaAircraftData(FIMSAircraftData data)
     {
+        // Validate data before processing
+        if (data == null)
+        {
+            Debug.LogWarning("Received null aircraft data from Kafka");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(data.aircraft_id))
+        {
+            Debug.LogWarning("Received aircraft data with empty aircraft_id");
+            return;
+        }
+
+        if (data.position == null)
+        {
+            Debug.LogWarning($"Received aircraft data with null position for {data.aircraft_id}");
+            return;
+        }
+
+        // Validate coordinates
+        if (double.IsNaN(data.position.lat) || double.IsNaN(data.position.lon) || double.IsNaN(data.position.alt))
+        {
+            Debug.LogWarning($"Received invalid coordinates for {data.aircraft_id}: lat={data.position.lat}, lon={data.position.lon}, alt={data.position.alt}");
+            return;
+        }
+
+        if (data.velocity == null)
+        {
+            Debug.LogWarning($"Received aircraft data with null velocity for {data.aircraft_id}");
+            return;
+        }
+
         kafkaMessagesReceived++;
 
         // Convert FIMS data to our format and update aircraft
@@ -125,7 +185,7 @@ public class AircraftManager : MonoBehaviour
 
         if (kafkaConsumer.debugMessages)
         {
-            Debug.Log($"Processed Kafka data for {data.callsign} ({data.aircraft_id})");
+            Debug.Log($"Processed Kafka data for {data.callsign} ({data.aircraft_id}) at {data.position.lat:F4}, {data.position.lon:F4}");
         }
     }
 
@@ -133,6 +193,13 @@ public class AircraftManager : MonoBehaviour
         double longitude, double latitude, double altitude,
         float heading, float groundSpeed)
     {
+        // Validate inputs
+        if (string.IsNullOrEmpty(icao24))
+        {
+            Debug.LogWarning("Cannot create aircraft with empty ICAO24");
+            return;
+        }
+
         // Check aircraft limit
         if (!activeAircraft.ContainsKey(icao24) && activeAircraft.Count >= maxAircraft)
         {
@@ -149,43 +216,62 @@ public class AircraftManager : MonoBehaviour
                 aircraft.UpdatePosition(longitude, latitude, altitude);
                 aircraft.UpdateHeading(heading);
                 aircraft.UpdateData(callsign, (float)altitude, groundSpeed);
-            }
-        }
-        else
-        {
-            // Create new aircraft
-            GameObject newAircraftGO = Instantiate(aircraftPrefab);
-            Aircraft_Controller newAircraft = newAircraftGO.GetComponent<Aircraft_Controller>();
-
-            if (newAircraft != null)
-            {
-                // Make sure it's a child of the georeference
-                Transform georeference = FindObjectOfType<CesiumForUnity.CesiumGeoreference>()?.transform;
-                if (georeference != null)
-                {
-                    newAircraftGO.transform.SetParent(georeference);
-                }
-
-                newAircraft.icao24 = icao24;
-                newAircraft.callsign = callsign;
-                newAircraft.altitude = (float)altitude;
-                newAircraft.groundSpeed = groundSpeed;
-                newAircraft.heading = heading;
-
-                newAircraft.UpdatePosition(longitude, latitude, altitude);
-                newAircraft.UpdateHeading(heading);
-                newAircraft.UpdateData(callsign, (float)altitude, groundSpeed);
-
-                activeAircraft[icao24] = newAircraft;
-                UpdateDebugInfo();
-
-                Debug.Log($"Created aircraft: {callsign} ({icao24}) at {latitude:F4}, {longitude:F4}");
+                return; // Exit here to avoid recreating
             }
             else
             {
-                Debug.LogError("Aircraft prefab doesn't have Aircraft_Controller component!");
-                Destroy(newAircraftGO);
+                // Aircraft controller is null, remove from dictionary and recreate
+                Debug.LogWarning($"Aircraft controller for {icao24} was null, recreating...");
+                activeAircraft.Remove(icao24);
+                // Fall through to create new aircraft
             }
+        }
+
+        // Create new aircraft (or recreate)
+        Debug.Log($"Creating NEW aircraft: {callsign} ({icao24}) at {latitude:F6}, {longitude:F6}, alt: {altitude}");
+
+        GameObject newAircraftGO = Instantiate(aircraftPrefab);
+        newAircraftGO.name = $"Aircraft_{callsign}_{icao24}"; // Give it a unique name
+
+        // CRITICAL FIX: Parent aircraft to CesiumGeoreference
+        if (georeferenceTransform != null)
+        {
+            newAircraftGO.transform.SetParent(georeferenceTransform);
+            Debug.Log($"Aircraft {callsign} parented to CesiumGeoreference: {georeference.name}");
+        }
+        else
+        {
+            Debug.LogError($"Cannot parent aircraft {callsign} - CesiumGeoreference transform is null!");
+        }
+
+        Aircraft_Controller newAircraft = newAircraftGO.GetComponent<Aircraft_Controller>();
+
+        if (newAircraft != null)
+        {
+            // Set aircraft data FIRST, before any updates
+            newAircraft.icao24 = icao24;
+            newAircraft.callsign = callsign;
+            newAircraft.altitude = (float)altitude;
+            newAircraft.groundSpeed = groundSpeed;
+            newAircraft.heading = heading;
+
+            Debug.Log($"Set aircraft data for {callsign}: alt={altitude}, speed={groundSpeed}, heading={heading}");
+
+            // THEN update position and other properties
+            newAircraft.UpdatePosition(longitude, latitude, altitude);
+            newAircraft.UpdateHeading(heading);
+            newAircraft.UpdateData(callsign, (float)altitude, groundSpeed);
+
+            activeAircraft[icao24] = newAircraft;
+            UpdateDebugInfo();
+
+            Debug.Log($"SUCCESSFULLY Created aircraft: {callsign} ({icao24}) at {latitude:F4}, {longitude:F4}, altitude: {altitude}");
+            Debug.Log($"Total active aircraft now: {activeAircraft.Count}");
+        }
+        else
+        {
+            Debug.LogError("Aircraft prefab doesn't have Aircraft_Controller component!");
+            Destroy(newAircraftGO);
         }
     }
 
@@ -193,7 +279,10 @@ public class AircraftManager : MonoBehaviour
     {
         if (activeAircraft.ContainsKey(icao24))
         {
-            Destroy(activeAircraft[icao24].gameObject);
+            if (activeAircraft[icao24] != null)
+            {
+                Destroy(activeAircraft[icao24].gameObject);
+            }
             activeAircraft.Remove(icao24);
             lastUpdateTime.Remove(icao24);
             UpdateDebugInfo();
@@ -229,12 +318,12 @@ public class AircraftManager : MonoBehaviour
     public void SetSimulatedData(bool useSimulated)
     {
         useSimulatedData = useSimulated;
-        
+
         if (!useSimulated)
         {
             ClearAllAircraft(); // Clear simulated aircraft when switching to real data
             aircraftCreated = false; // Reset flag
-            
+
             // Make sure Kafka consumer is running
             if (kafkaConsumer != null && !kafkaConsumer.IsConnected())
             {
@@ -246,13 +335,24 @@ public class AircraftManager : MonoBehaviour
             // Reset simulated data flag
             aircraftCreated = false;
         }
-        
+
         Debug.Log("Switched to " + (useSimulated ? "simulated" : "real") + " data mode");
     }
 
+    // SIMPLIFIED: Clean up null references before returning
     public Dictionary<string, Aircraft_Controller> GetActiveAircraft()
     {
-        return activeAircraft;
+        // Clean up only null references (remove IsValid check temporarily)
+        var keysToRemove = activeAircraft.Where(kvp => kvp.Value == null).Select(kvp => kvp.Key).ToList();
+
+        foreach (var key in keysToRemove)
+        {
+            Debug.LogWarning($"Removing null aircraft reference: {key}");
+            activeAircraft.Remove(key);
+        }
+
+        UpdateDebugInfo();
+        return new Dictionary<string, Aircraft_Controller>(activeAircraft);
     }
 
     // Status methods for debugging

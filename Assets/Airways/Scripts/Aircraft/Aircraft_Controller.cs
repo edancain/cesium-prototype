@@ -13,45 +13,42 @@ public class Aircraft_Controller : MonoBehaviour
 
     [Header("Components")]
     public CesiumGlobeAnchor globeAnchor;
-    
+
     [Header("Flight Path")]
     public bool isFlying = false;
-    
+
     [Header("Visual")]
     public GameObject aircraftModel;
-    public TextMeshProUGUI labelText;
 
     // Current position tracking
     private double currentLat;
     private double currentLon;
     private double currentAlt;
+    private bool isInitialized = false;
+
+    // Position monitoring variables - removed problematic monitoring system
+    private Unity.Mathematics.double3 lastSetPosition;
+    private bool positionWasSet = false;
 
     void Start()
     {
         if (globeAnchor == null)
             globeAnchor = GetComponent<CesiumGlobeAnchor>();
 
-        // DEBUG: Let's see what children this GameObject actually has
-        Debug.Log($"Aircraft {callsign} has {transform.childCount} children:");
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            Transform child = transform.GetChild(i);
-            Debug.Log($"  Child {i}: '{child.name}' (GameObject: {child.gameObject.name})");
-            
-            // Also check grandchildren
-            for (int j = 0; j < child.childCount; j++)
-            {
-                Transform grandChild = child.GetChild(j);
-                Debug.Log($"    Grandchild {j}: '{grandChild.name}'");
-            }
-        }
+        // Find aircraft model
+        FindAircraftModel();
 
+        // Removed problematic position monitoring that was causing issues
+        Debug.Log($"Aircraft_Controller started for {callsign}");
+    }
+
+    void FindAircraftModel()
+    {
         if (aircraftModel == null)
         {
             // Try multiple ways to find the aircraft model
             aircraftModel = transform.Find("An-225")?.gameObject;
-            Debug.Log($"Method 1 - Found aircraftModel: '{aircraftModel?.name}'");
-            
+
             if (aircraftModel == null)
             {
                 // Try finding by component
@@ -59,10 +56,9 @@ public class Aircraft_Controller : MonoBehaviour
                 if (meshFilter != null)
                 {
                     aircraftModel = meshFilter.gameObject;
-                    Debug.Log($"Method 2 - Found aircraftModel by MeshFilter: '{aircraftModel?.name}'");
                 }
             }
-            
+
             if (aircraftModel == null)
             {
                 // Try finding any child that's not Canvas
@@ -72,58 +68,25 @@ public class Aircraft_Controller : MonoBehaviour
                     if (child.name != "Canvas")
                     {
                         aircraftModel = child.gameObject;
-                        Debug.Log($"Method 3 - Found aircraftModel (non-Canvas): '{aircraftModel?.name}'");
                         break;
                     }
                 }
             }
         }
+    }
 
-        if (labelText == null)
-        {
-            var labelObj = transform.Find("Canvas/Text (TMP)");
-            if (labelObj != null)
-                labelText = labelObj.GetComponent<TextMeshProUGUI>();
-        }
-
-        UpdateLabel();
+    // Validation method for AircraftManager
+    public bool IsValid()
+    {
+        return gameObject != null && globeAnchor != null &&
+               !gameObject.Equals(null) && !globeAnchor.Equals(null) &&
+               gameObject.activeInHierarchy;
     }
 
     void Update()
     {
-        //if (isFlying && groundSpeed > 0)
-        //{
-            // Calculate continuous movement based on speed and heading
-            //MoveAircraftContinuously();
-        //}
-    }
-
-    void MoveAircraftContinuously()
-    {
-        // Convert speed from knots to meters per second
-        float speedMs = groundSpeed * 0.514444f; // knots to m/s
-        
-        // Calculate movement per frame
-        float deltaTime = Time.deltaTime;
-        float distanceThisFrame = speedMs * deltaTime; // meters moved this frame
-        
-        // Aviation heading: 0° = North, 90° = East, 180° = South, 270° = West
-        float headingRad = heading * Mathf.Deg2Rad;
-        
-        // Calculate lat/lon changes - CORRECT DIRECTION
-        // North = +latitude, East = +longitude
-        double deltaLat = (distanceThisFrame * Mathf.Cos(headingRad)) / 111320.0; // North component  
-        double deltaLon = (distanceThisFrame * Mathf.Sin(headingRad)) / (111320.0 * Mathf.Cos((float)currentLat * Mathf.Deg2Rad)); // East component
-        
-        // Update position
-        currentLat += deltaLat;
-        currentLon += deltaLon;
-        
-        // Update globe anchor
-        if (globeAnchor != null)
-        {
-            globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(currentLon, currentLat, currentAlt);
-        }
+        // Removed continuous movement system as it was causing position conflicts
+        // Movement is now handled entirely through UpdatePosition calls
     }
 
     public void UpdatePosition(double longitude, double latitude, double altitude)
@@ -133,19 +96,47 @@ public class Aircraft_Controller : MonoBehaviour
         currentLat = latitude;
         currentAlt = altitude;
         this.altitude = (float)altitude;
-        
+
+        Debug.Log($"{callsign}: UpdatePosition called with {longitude:F4}, {latitude:F4}, {altitude}");
+
         // Update globe anchor immediately
         if (globeAnchor != null)
         {
-            globeAnchor.longitudeLatitudeHeight = new Unity.Mathematics.double3(longitude, latitude, altitude);
+            var newPos = new Unity.Mathematics.double3(longitude, latitude, altitude);
+
+            Debug.Log($"SETTING position for {callsign}: {newPos}");
+            globeAnchor.longitudeLatitudeHeight = newPos;
+
+            // Store for reference
+            lastSetPosition = newPos;
+            positionWasSet = true;
+
+            // Verify the position was set correctly
+            var checkPos = globeAnchor.longitudeLatitudeHeight;
+            if (Vector3.Distance(new Vector3((float)checkPos.x, (float)checkPos.y, (float)checkPos.z),
+                               new Vector3((float)newPos.x, (float)newPos.y, (float)newPos.z)) > 0.001f)
+            {
+                Debug.LogWarning($"Position verification failed for {callsign}! Set {newPos}, got {checkPos}");
+            }
+            else
+            {
+                Debug.Log($"Position successfully set for {callsign}: {checkPos}");
+                Debug.Log($"{callsign}: Transform position after update: {transform.position}");
+            }
         }
+        else
+        {
+            Debug.LogError($"CesiumGlobeAnchor is null for {callsign}!");
+        }
+
+        isInitialized = true;
     }
 
     public void UpdateHeading(float newHeading)
     {
         Debug.Log($"UpdateHeading called: {newHeading} for {callsign}");
         heading = newHeading;
-        
+
         if (globeAnchor != null)
         {
             // Use Cesium's East-Up-North coordinate system
@@ -159,22 +150,31 @@ public class Aircraft_Controller : MonoBehaviour
 
     public void UpdateData(string newCallsign, float newAltitude, float newGroundSpeed)
     {
+        // Only update if we have valid data
+        if (string.IsNullOrEmpty(newCallsign))
+        {
+            Debug.LogWarning($"Received empty callsign for aircraft {icao24}");
+            return;
+        }
+
         callsign = newCallsign;
         altitude = newAltitude;
         groundSpeed = newGroundSpeed;
-        
+
         // Start flying if we have speed
         isFlying = (groundSpeed > 0);
-        
-        UpdateLabel();
     }
 
-    void UpdateLabel()
+    public void SetSpeed(float speed)
     {
-        if (labelText != null && !string.IsNullOrEmpty(callsign))
-        {
-            labelText.text = $"{callsign}\nFL{altitude/100:F0}\n{groundSpeed:F0}kts\nHDG {heading:F0}°";
-        }
+        groundSpeed = speed;
+        isFlying = (speed > 0);
+    }
+
+    public void SetAltitude(float alt)
+    {
+        altitude = alt;
+        currentAlt = alt;
     }
 
     public Unity.Mathematics.double3 GetCurrentPosition()
@@ -182,8 +182,30 @@ public class Aircraft_Controller : MonoBehaviour
         return new Unity.Mathematics.double3(currentLon, currentLat, currentAlt);
     }
 
+    public Vector3 GetWorldPosition()
+    {
+        if (globeAnchor != null)
+        {
+            return globeAnchor.transform.position;
+        }
+        return transform.position;
+    }
+
+    // Method to check if aircraft has valid positioning data
+    public bool HasValidPosition()
+    {
+        return isInitialized && globeAnchor != null &&
+               (currentLat != 0 || currentLon != 0 || currentAlt != 0);
+    }
+
     void OnValidate()
     {
-        UpdateLabel();
+        // Removed label update - handled by AircraftLabelManager
+    }
+
+    void OnDestroy()
+    {
+        CancelInvoke();
+        Debug.Log($"Aircraft_Controller destroyed for {callsign}");
     }
 }

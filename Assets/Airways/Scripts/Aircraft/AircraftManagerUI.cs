@@ -20,6 +20,10 @@ public class AircraftUIManager : MonoBehaviour
     public bool autoUpdate = true;
     public float updateInterval = 2f;
 
+    [Header("Debug")]
+    [SerializeField] private int buttonCount = 0;
+    [SerializeField] private List<string> buttonList = new List<string>();
+
     private AircraftManager aircraftManager;
     private Dictionary<string, GameObject> aircraftButtons = new Dictionary<string, GameObject>();
 
@@ -44,19 +48,40 @@ public class AircraftUIManager : MonoBehaviour
             Debug.LogError("CesiumFlyToController not found! Camera fly-to won't work.");
         }
 
-        // Start auto-update if enabled
+        // Validate UI components
+        if (aircraftButtonPrefab == null)
+        {
+            Debug.LogError("Aircraft button prefab not assigned!");
+        }
+
+        if (buttonContainer == null)
+        {
+            Debug.LogError("Button container not assigned!");
+        }
+
+        // Start auto-update if enabled - but start immediately and more frequently
         if (autoUpdate)
         {
-            InvokeRepeating(nameof(UpdateAircraftList), 1f, updateInterval);
+            // Update immediately, then every interval
+            UpdateAircraftList();
+            InvokeRepeating(nameof(UpdateAircraftList), updateInterval, updateInterval);
         }
+
+        Debug.Log("AircraftUIManager started");
     }
 
     public void UpdateAircraftList()
     {
-        if (aircraftManager == null) return;
+        if (aircraftManager == null)
+        {
+            Debug.LogWarning("AircraftManager is null, cannot update aircraft list");
+            return;
+        }
 
         // Get current aircraft from the manager
         var currentAircraft = GetActiveAircraft();
+
+        Debug.Log($"UpdateAircraftList called - Found {currentAircraft.Count} aircraft in manager");
 
         // Remove buttons for aircraft that no longer exist
         List<string> toRemove = new List<string>();
@@ -65,6 +90,7 @@ public class AircraftUIManager : MonoBehaviour
             if (!currentAircraft.ContainsKey(kvp.Key))
             {
                 toRemove.Add(kvp.Key);
+                Debug.Log($"Marking button for removal: {kvp.Key}");
             }
         }
 
@@ -79,17 +105,28 @@ public class AircraftUIManager : MonoBehaviour
             string icao24 = kvp.Key;
             Aircraft_Controller aircraft = kvp.Value;
 
+            if (aircraft == null)
+            {
+                Debug.LogWarning($"Aircraft controller for {icao24} is null!");
+                continue;
+            }
+
             if (aircraftButtons.ContainsKey(icao24))
             {
                 // Update existing button
                 UpdateAircraftButton(icao24, aircraft);
+                Debug.Log($"Updated existing button for {aircraft.callsign}");
             }
             else
             {
                 // Create new button
+                Debug.Log($"Creating NEW button for {aircraft.callsign} ({icao24})");
                 CreateAircraftButton(icao24, aircraft);
             }
         }
+
+        // Update debug info
+        UpdateDebugInfo();
     }
 
     void UpdateAircraftButton(string icao24, Aircraft_Controller aircraft)
@@ -97,12 +134,19 @@ public class AircraftUIManager : MonoBehaviour
         if (!aircraftButtons.ContainsKey(icao24)) return;
 
         GameObject buttonObj = aircraftButtons[icao24];
+        if (buttonObj == null)
+        {
+            Debug.LogWarning($"Button object for {icao24} is null, removing from dictionary");
+            aircraftButtons.Remove(icao24);
+            return;
+        }
+
         TextMeshProUGUI buttonText = buttonObj.GetComponentInChildren<TextMeshProUGUI>();
 
-        if (buttonText != null)
+        if (buttonText != null && !string.IsNullOrEmpty(aircraft.callsign))
         {
             buttonText.text = aircraft.callsign;
-            Debug.Log($"Updated button text for {aircraft.callsign} ({icao24})"); // Debug log
+            Debug.Log($"Updated button text for {aircraft.callsign} ({icao24})");
         }
     }
 
@@ -114,19 +158,41 @@ public class AircraftUIManager : MonoBehaviour
             return;
         }
 
-        Debug.Log($"Creating button for aircraft: {aircraft.callsign} ({icao24})"); // ADD THIS
+        if (string.IsNullOrEmpty(aircraft.callsign))
+        {
+            Debug.LogWarning($"Aircraft {icao24} has no callsign, skipping button creation");
+            return;
+        }
+
+        Debug.Log($"CREATING BUTTON for aircraft: {aircraft.callsign} ({icao24})");
 
         // Instantiate button
         GameObject buttonObj = Instantiate(aircraftButtonPrefab, buttonContainer);
+        buttonObj.name = $"Button_{aircraft.callsign}"; // Give it a descriptive name
 
-        Debug.Log($"Button created for {aircraft.callsign}, total buttons now: {aircraftButtons.Count + 1}"); // ADD THIS
+        // Position button with Y spacing of 45 units
+        RectTransform buttonRect = buttonObj.GetComponent<RectTransform>();
+        if (buttonRect != null)
+        {
+            int buttonIndex = aircraftButtons.Count; // Current number of buttons (0, 1, 2...)
+            float yPosition = -buttonIndex * 45f;    // -0, -45, -90, etc.
+
+            buttonRect.anchoredPosition = new Vector2(0f, yPosition);
+            Debug.Log($"Button positioned at Y: {yPosition} (index: {buttonIndex})");
+        }
+
+        Debug.Log($"Button GameObject created: {buttonObj.name}");
 
         // Set up button text - ONLY CALLSIGN
         TextMeshProUGUI buttonText = buttonObj.GetComponentInChildren<TextMeshProUGUI>();
         if (buttonText != null)
         {
             buttonText.text = aircraft.callsign;
-            Debug.Log($"Button text set to: {buttonText.text}"); // ADD THIS
+            Debug.Log($"Button text set to: '{buttonText.text}'");
+        }
+        else
+        {
+            Debug.LogError($"Could not find TextMeshProUGUI component in button prefab for {aircraft.callsign}!");
         }
 
         // Set up button click event
@@ -134,19 +200,28 @@ public class AircraftUIManager : MonoBehaviour
         if (button != null)
         {
             button.onClick.AddListener(() => FlyToAircraft(icao24));
+            Debug.Log($"Click listener added for {aircraft.callsign}");
+        }
+        else
+        {
+            Debug.LogError($"Could not find Button component in button prefab for {aircraft.callsign}!");
         }
 
         // Store button reference
         aircraftButtons[icao24] = buttonObj;
 
-        Debug.Log($"Button stored in dictionary. Dictionary now contains: {aircraftButtons.Count} buttons"); // ADD THIS
+        Debug.Log($"Button successfully stored in dictionary for {aircraft.callsign}. Total buttons: {aircraftButtons.Count}");
     }
 
     void RemoveAircraftButton(string icao24)
     {
         if (aircraftButtons.ContainsKey(icao24))
         {
-            Destroy(aircraftButtons[icao24]);
+            Debug.Log($"Removing button for {icao24}");
+            if (aircraftButtons[icao24] != null)
+            {
+                Destroy(aircraftButtons[icao24]);
+            }
             aircraftButtons.Remove(icao24);
         }
     }
@@ -171,9 +246,9 @@ public class AircraftUIManager : MonoBehaviour
         // Get aircraft position
         var aircraftPosition = aircraft.globeAnchor.longitudeLatitudeHeight;
 
-        // Position camera DIRECTLY ABOVE aircraft
-        double cameraLongitude = aircraftPosition.x;  // Same longitude
-        double cameraLatitude = aircraftPosition.y;   // Same latitude  
+        // Position camera DIRECTLY ABOVE aircraft for centered top-down view
+        double cameraLongitude = aircraftPosition.x;  // Same longitude (centered)
+        double cameraLatitude = aircraftPosition.y;   // Same latitude (centered)
         double cameraAltitude = aircraftPosition.z + cameraHeight; // Above aircraft
 
         // Fly camera to position above aircraft, looking straight down
@@ -181,39 +256,71 @@ public class AircraftUIManager : MonoBehaviour
         {
             flyToController.FlyToLocationLongitudeLatitudeHeight(
                 new Unity.Mathematics.double3(cameraLongitude, cameraLatitude, cameraAltitude),
-                0f,   // yaw (facing north)
-                90f, // pitch (looking straight down) 
-                true  // can interrupt
+                0f,    // yaw (facing north)
+                90f,  // pitch (looking straight down)
+                true   // can interrupt
             );
 
-            Debug.Log($"Flying to aircraft: {aircraft.callsign} - positioned directly above, looking down");
+            Debug.Log($"Flying to aircraft: {aircraft.callsign} - positioned directly above at {cameraAltitude}m, looking straight down");
         }
     }
+
     // Helper method to get active aircraft from the manager
     private Dictionary<string, Aircraft_Controller> GetActiveAircraft()
     {
         if (aircraftManager != null)
         {
-            return aircraftManager.GetActiveAircraft();
+            var aircraft = aircraftManager.GetActiveAircraft();
+            Debug.Log($"GetActiveAircraft: Retrieved {aircraft.Count} aircraft from manager");
+            return aircraft;
         }
 
+        Debug.LogWarning("AircraftManager is null!");
         return new Dictionary<string, Aircraft_Controller>();
+    }
+
+    private void UpdateDebugInfo()
+    {
+        buttonCount = aircraftButtons.Count;
+        buttonList.Clear();
+
+        foreach (var kvp in aircraftButtons)
+        {
+            if (kvp.Value != null)
+            {
+                var buttonText = kvp.Value.GetComponentInChildren<TextMeshProUGUI>();
+                string displayText = buttonText != null ? buttonText.text : "No Text";
+                buttonList.Add($"{kvp.Key}: {displayText}");
+            }
+        }
     }
 
     // Public methods for manual control
     public void RefreshList()
     {
+        Debug.Log("Manual refresh requested");
         UpdateAircraftList();
     }
 
     public void ClearAllButtons()
     {
+        Debug.Log($"Clearing all {aircraftButtons.Count} buttons");
         foreach (var button in aircraftButtons.Values)
         {
             if (button != null)
                 Destroy(button);
         }
         aircraftButtons.Clear();
+        UpdateDebugInfo();
+    }
+
+    // Manual button creation for debugging
+    [ContextMenu("Force Create All Buttons")]
+    public void ForceCreateAllButtons()
+    {
+        Debug.Log("Force creating buttons...");
+        ClearAllButtons();
+        UpdateAircraftList();
     }
 
     void OnDestroy()

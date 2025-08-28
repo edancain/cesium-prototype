@@ -38,7 +38,7 @@ public class WorkingKafkaConsumer : MonoBehaviour
     public string windowsKafkaIP = "192.168.1.100"; // Set your Windows machine IP here
     public bool useRemoteKafka = false; // Toggle between local and remote
     public string consumerGroupId = "unity-asterix-consumer";
-    public List<string> topics = new List<string> 
+    public List<string> topics = new List<string>
     {
         "surveillance.asterix.cat021", // ADS-B data
         "surveillance.asterix.cat048", // Radar target reports
@@ -65,24 +65,75 @@ public class WorkingKafkaConsumer : MonoBehaviour
 
     // Internal state
     private Queue<FIMSAircraftData> messageQueue = new Queue<FIMSAircraftData>();
-    private bool aircraftCreated = false;
-    
-    // Flight path tracking
-    private double anz123_lat = -43.475309;
-    private double anz123_lon = 172.547780;
-    private double ice001_lat = -77.8419;
-    private double ice001_lon = 166.6863;
+    private bool initialAircraftCreated = false;
 
-    private double lh456_lat = 52.5200;  // Berlin coordinates
-    private double lh456_lon = 13.4050;
+    // Flight path tracking for simulated aircraft
+    private Dictionary<string, SimulatedAircraft> simulatedAircraft = new Dictionary<string, SimulatedAircraft>();
+
+    [System.Serializable]
+    public class SimulatedAircraft
+    {
+        public string icao24;
+        public string callsign;
+        public double lat;
+        public double lon;
+        public double alt;
+        public float speed;
+        public float heading;
+        public string category;
+
+        public SimulatedAircraft(string id, string call, double latitude, double longitude, double altitude, float groundSpeed, float hdg, string cat)
+        {
+            icao24 = id;
+            callsign = call;
+            lat = latitude;
+            lon = longitude;
+            alt = altitude;
+            speed = groundSpeed;
+            heading = hdg;
+            category = cat;
+        }
+    }
 
     void Start()
     {
         Debug.Log("WorkingKafkaConsumer: Starting up...");
+
+        // Initialize simulated aircraft data
+        InitializeSimulatedAircraft();
+
         if (autoStart)
         {
             StartConsumer();
         }
+    }
+
+    void InitializeSimulatedAircraft()
+    {
+        simulatedAircraft.Clear();
+
+        // ANZ123 (Christchurch, New Zealand)
+        simulatedAircraft["ANZ123"] = new SimulatedAircraft(
+            "ANZ123", "ANZ123",
+            -43.475309, 172.547780, 5000,
+            420, 90, "cat021"
+        );
+
+        // ICE001 (McMurdo Station, Antarctica)
+        simulatedAircraft["ICE001"] = new SimulatedAircraft(
+            "ICE001", "ICE001",
+            -77.8419, 166.6863, 15000,
+            200, 270, "cat048"
+        );
+
+        // LH456 (Berlin, Germany)
+        simulatedAircraft["LH456"] = new SimulatedAircraft(
+            "LH456", "LH456",
+            52.5200, 13.4050, 37000,
+            480, 170, "cat021"
+        );
+
+        Debug.Log($"WorkingKafkaConsumer: Initialized {simulatedAircraft.Count} simulated aircraft");
     }
 
     public void StartConsumer()
@@ -95,122 +146,127 @@ public class WorkingKafkaConsumer : MonoBehaviour
 
         if (useSimulatedData)
         {
-            Debug.Log("WorkingKafkaConsumer: Starting with InvokeRepeating...");
-            
-            // Use InvokeRepeating instead of coroutine
-            InvokeRepeating(nameof(GenerateSimulatedData), 1f, simulatedDataInterval);
+            Debug.Log("WorkingKafkaConsumer: Starting simulated data mode...");
+
+            // Create initial aircraft immediately
+            CreateInitialAircraft();
+
+            // Start regular updates
+            InvokeRepeating(nameof(GenerateSimulatedData), simulatedDataInterval, simulatedDataInterval);
             isConnected = true;
-            
+
             Debug.Log("WorkingKafkaConsumer: Started simulated Kafka consumer with ASTERIX data");
         }
         else
         {
-            Debug.LogWarning("Real Kafka consumer not implemented yet.");
+            Debug.LogWarning("Real Kafka consumer not implemented yet. Falling back to simulated data.");
+            useSimulatedData = true;
+            StartConsumer(); // Restart with simulated data
         }
+    }
+
+    void CreateInitialAircraft()
+    {
+        Debug.Log("WorkingKafkaConsumer: Creating initial aircraft...");
+
+        foreach (var aircraft in simulatedAircraft.Values)
+        {
+            var aircraftData = new FIMSAircraftData
+            {
+                aircraft_id = aircraft.icao24,
+                callsign = aircraft.callsign,
+                position = new Position { lat = aircraft.lat, lon = aircraft.lon, alt = aircraft.alt },
+                velocity = new Velocity { speed = aircraft.speed, heading = aircraft.heading },
+                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                category = aircraft.category
+            };
+
+            Debug.Log($"WorkingKafkaConsumer: Creating {aircraft.callsign} at LAT={aircraft.lat:F6}, LON={aircraft.lon:F6}, ALT={aircraft.alt}");
+
+            messageQueue.Enqueue(aircraftData);
+            messagesReceived++;
+        }
+
+        initialAircraftCreated = true;
+        Debug.Log($"WorkingKafkaConsumer: Queued initial data for {simulatedAircraft.Count} aircraft");
     }
 
     void GenerateSimulatedData()
     {
-        Debug.Log("WorkingKafkaConsumer: GenerateSimulatedData called!");
-        
-        if (!aircraftCreated)
+        if (!initialAircraftCreated)
         {
-            Debug.Log("WorkingKafkaConsumer: Creating aircraft for first time...");
-            
-            // Create ANZ123 (Christchurch, New Zealand - starting position)
-            var nzAircraft = new FIMSAircraftData
-            {
-                aircraft_id = "ANZ123",
-                callsign = "ANZ123",
-                position = new Position { lat = anz123_lat, lon = anz123_lon, alt = 5000 },
-                velocity = new Velocity { speed = 420, heading = 90 }, // Heading east
-                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                category = "cat021"
-            };
-
-            // Create ICE001 (McMurdo Station, Antarctica - starting position)
-            var antarcticaAircraft = new FIMSAircraftData
-            {
-                aircraft_id = "ICE001",
-                callsign = "ICE001",
-                position = new Position { lat = ice001_lat, lon = ice001_lon, alt = 15000 },
-                velocity = new Velocity { speed = 200, heading = 270 }, // Heading west
-                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                category = "cat048"
-            };
-
-            // Create LH456 (Berlin, Germany)
-            var berlinAircraft = new FIMSAircraftData
-            {
-                aircraft_id = "LH456",
-                callsign = "LH456",
-                position = new Position { lat = lh456_lat, lon = lh456_lon, alt = 37000 },
-                velocity = new Velocity { speed = 480, heading = 170 },
-                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                category = "cat021"
-            };
-
-            // Add to queue
-            messageQueue.Enqueue(nzAircraft);
-            messageQueue.Enqueue(antarcticaAircraft);
-            messageQueue.Enqueue(berlinAircraft);
-            messagesReceived += 3;
-            
-            aircraftCreated = true;
-            Debug.Log("WorkingKafkaConsumer: Created ANZ123 (Christchurch), ICE001 (McMurdo)");
+            Debug.LogWarning("Initial aircraft not created, creating now...");
+            CreateInitialAircraft();
+            return;
         }
-        else
+
+        Debug.Log("WorkingKafkaConsumer: Generating simulated movement updates...");
+
+        // Update each aircraft's position
+        foreach (var kvp in simulatedAircraft)
         {
-            Debug.Log("WorkingKafkaConsumer: Updating aircraft with realistic flight paths...");
-            
-            // ANZ123: Flying east from Christchurch at realistic speed
-            // 420 knots = ~0.12° longitude per update (5 seconds)
-            anz123_lon += 0.003; // Slow eastward movement
-            if (anz123_lon > 175.0) anz123_lon = 172.547780; // Reset to start
-            
-            var nzUpdate = new FIMSAircraftData
+            var aircraft = kvp.Value;
+
+            // Calculate movement based on speed and heading
+            UpdateAircraftMovement(aircraft);
+
+            // Create update data
+            var updateData = new FIMSAircraftData
             {
-                aircraft_id = "ANZ123",
-                callsign = "ANZ123",
-                position = new Position { lat = anz123_lat, lon = anz123_lon, alt = 5000 },
-                velocity = new Velocity { speed = 420, heading = 90 },
+                aircraft_id = aircraft.icao24,
+                callsign = aircraft.callsign,
+                position = new Position { lat = aircraft.lat, lon = aircraft.lon, alt = aircraft.alt },
+                velocity = new Velocity { speed = aircraft.speed, heading = aircraft.heading },
                 timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                category = "cat021"
+                category = aircraft.category
             };
 
-            // ICE001: Flying west over Antarctica at realistic speed  
-            // 200 knots = ~0.06° longitude per update (5 seconds)
-            ice001_lon -= 0.002; // Slow westward movement
-            if (ice001_lon < 164.0) ice001_lon = 166.6863; // Reset to start
-            
-            var antarcticaUpdate = new FIMSAircraftData
-            {
-                aircraft_id = "ICE001",
-                callsign = "ICE001",
-                position = new Position { lat = ice001_lat, lon = ice001_lon, alt = 15000 },
-                velocity = new Velocity { speed = 200, heading = 270 },
-                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                category = "cat048"
-            };
+            messageQueue.Enqueue(updateData);
+            messagesReceived++;
+        }
 
-            // LH456: Flying south over Europe
-            lh456_lat -= 0.002; // Moving south
-            if (lh456_lat < 50.0) lh456_lat = 52.5200; // Reset to Berlin
-            
-            var berlinUpdate = new FIMSAircraftData
-            {
-                aircraft_id = "LH456",
-                callsign = "LH456",
-                position = new Position { lat = lh456_lat, lon = lh456_lon, alt = 37000 },
-                velocity = new Velocity { speed = 480, heading = 170 },
-                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                category = "cat021"
-            };
+        Debug.Log($"WorkingKafkaConsumer: Generated updates for {simulatedAircraft.Count} aircraft");
+    }
 
-            messageQueue.Enqueue(nzUpdate);
-            messageQueue.Enqueue(antarcticaUpdate);
-            messageQueue.Enqueue(berlinUpdate);
-            messagesReceived += 3;
+    void UpdateAircraftMovement(SimulatedAircraft aircraft)
+    {
+        // Convert speed from knots to degrees per update interval
+        float speedKnots = aircraft.speed;
+        float timeInterval = simulatedDataInterval; // seconds
+
+        // Approximate: 1 degree latitude = 111 km, 1 knot = 1.852 km/h
+        double speedKmH = speedKnots * 1.852;
+        double speedKmPerInterval = speedKmH * (timeInterval / 3600.0);
+        double speedDegreesPerInterval = speedKmPerInterval / 111.0;
+
+        // Calculate movement based on heading
+        float headingRad = aircraft.heading * Mathf.Deg2Rad;
+        double deltaLat = speedDegreesPerInterval * Math.Cos(headingRad);
+        double deltaLon = speedDegreesPerInterval * Math.Sin(headingRad) / Math.Cos(aircraft.lat * Math.PI / 180.0);
+
+        // Update position
+        aircraft.lat += deltaLat;
+        aircraft.lon += deltaLon;
+
+        // Implement simple wrap-around or bouncing for demo purposes
+        switch (aircraft.icao24)
+        {
+            case "ANZ123": // Flying east from Christchurch
+                if (aircraft.lon > 175.0) aircraft.lon = 172.547780; // Reset to start
+                break;
+
+            case "ICE001": // Flying west over Antarctica
+                if (aircraft.lon < 164.0) aircraft.lon = 166.6863; // Reset to start
+                break;
+
+            case "LH456": // Flying south over Europe
+                if (aircraft.lat < 50.0) aircraft.lat = 52.5200; // Reset to Berlin
+                break;
+        }
+
+        if (debugMessages)
+        {
+            Debug.Log($"Updated {aircraft.callsign} position: {aircraft.lat:F4}, {aircraft.lon:F4}");
         }
     }
 
@@ -232,16 +288,19 @@ public class WorkingKafkaConsumer : MonoBehaviour
     private void ProcessQueuedMessages()
     {
         int processed = 0;
-        
+
         while (messageQueue.Count > 0 && processed < maxMessagesPerFrame)
         {
             FIMSAircraftData aircraftData = messageQueue.Dequeue();
-            
-            Debug.Log($"WorkingKafkaConsumer: Processing aircraft {aircraftData.callsign} - Event listeners: {OnAircraftDataReceived?.GetInvocationList()?.Length ?? 0}");
-            
+
+            if (debugMessages)
+            {
+                Debug.Log($"WorkingKafkaConsumer: Processing aircraft {aircraftData.callsign} - Event listeners: {OnAircraftDataReceived?.GetInvocationList()?.Length ?? 0}");
+            }
+
             // Invoke event for AircraftManager to handle
             OnAircraftDataReceived?.Invoke(aircraftData);
-            
+
             messagesProcessed++;
             processed++;
         }
@@ -251,6 +310,7 @@ public class WorkingKafkaConsumer : MonoBehaviour
     public void RestartConsumer()
     {
         StopConsumer();
+        initialAircraftCreated = false; // Reset flag so aircraft are recreated
         StartConsumer();
     }
 
@@ -276,9 +336,10 @@ public class WorkingKafkaConsumer : MonoBehaviour
     {
         StopConsumer();
         ClearMessageQueue();
-        aircraftCreated = false;
+        initialAircraftCreated = false;
         messagesReceived = 0;
         messagesProcessed = 0;
+        InitializeSimulatedAircraft(); // Reinitialize aircraft data
         Debug.Log("WorkingKafkaConsumer reset - will create new aircraft on next start");
     }
 
@@ -297,7 +358,7 @@ public class WorkingKafkaConsumer : MonoBehaviour
     void OnApplicationPause(bool pauseStatus)
     {
         if (keepRunningInEditor) return; // Don't stop in editor
-        
+
         if (pauseStatus)
             StopConsumer();
         else if (autoStart)
@@ -307,7 +368,7 @@ public class WorkingKafkaConsumer : MonoBehaviour
     void OnApplicationFocus(bool hasFocus)
     {
         if (keepRunningInEditor) return; // Don't stop in editor
-        
+
         if (!hasFocus)
             StopConsumer();
         else if (autoStart)
