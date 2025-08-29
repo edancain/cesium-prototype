@@ -682,11 +682,15 @@ MonoBehaviour:
   screenCanvas: {fileID: 0}
   labelScale: 1
   fontSize: 24
-  constantSizeDistance: 750
+  constantSizeDistance: 1000
+  maxConstantDistance: 80000
   verticalOffset: 50
   horizontalOffset: -75
   horizontalDirection: -1
   textColor: {r: 0.010021925, g: 1, b: 0, a: 1}
+  circleIndicatorDistance: 10000
+  circleColor: {r: 0, g: 1, b: 1, a: 1}
+  circleSize: 10
   showDebugInfo: 1
 --- !u!4 &1117215578
 Transform:
@@ -799,7 +803,7 @@ MonoBehaviour:
   cameraDistance: 2000
   zoomSpeed: 200
   minCameraHeight: 100
-  maxCameraHeight: 5000
+  maxCameraHeight: 30000
 --- !u!4 &1718900207
 Transform:
   m_ObjectHideFlags: 0
