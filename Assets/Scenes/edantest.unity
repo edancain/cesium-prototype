@@ -681,6 +681,9 @@ MonoBehaviour:
   labelPrefab: {fileID: 0}
   screenCanvas: {fileID: 0}
   labelOffset: 50
+  labelScale: 1
+  fontSize: 16
+  constantSizeDistance: 1000
   showDebugInfo: 1
 --- !u!4 &1117215578
 Transform:
@@ -780,18 +783,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fec8a5b7fe82ccf4cac5dc89ff6823ae, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ModernAircraftUI
-  panelRect:
-    serializedVersion: 2
-    x: 10
-    y: 10
-    width: 300
-    height: 400
-  backgroundColor: {r: 0.1, g: 0.1, b: 0.15, a: 0.95}
-  buttonColor: {r: 0.2, g: 0.3, b: 0.4, a: 0.9}
-  buttonHoverColor: {r: 0.3, g: 0.4, b: 0.6, a: 0.9}
-  buttonSelectedColor: {r: 0.4, g: 0.6, b: 0.8, a: 1}
-  textColor: {r: 1, g: 1, b: 1, a: 1}
-  orbitCameraController: {fileID: 0}
+  showAircraftPanel: 1
+  updateInterval: 1
+  panelWidth: 250
+  panelHeight: 400
+  leftMargin: 10
+  topMargin: 10
+  buttonHeight: 60
+  buttonSpacing: 5
+  flyToController: {fileID: 0}
+  cameraHeight: 1000
+  cameraDistance: 2000
 --- !u!4 &1718900207
 Transform:
   m_ObjectHideFlags: 0
@@ -823,9 +825,6 @@ GameObject:
   - component: {fileID: 1961636183}
   - component: {fileID: 1961636177}
   - component: {fileID: 1961636176}
-  - component: {fileID: 1961636184}
-  - component: {fileID: 1961636185}
-  - component: {fileID: 1961636186}
   m_Layer: 0
   m_Name: DynamicCamera
   m_TagString: MainCamera
@@ -1185,68 +1184,6 @@ MonoBehaviour:
       z: -4372941.4125511395
       w: 1
   _localToGlobeFixedMatrixIsValid: 1
---- !u!114 &1961636184
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1961636174}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: be13a40831d37c74ea1b4ca6dffcbdc9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MouseDownCameraController
-  requireMouseDown: 1
-  leftMousePressed: 0
-  leftMouseButton: 1
-  middleMouseButton: 1
-  rightMouseButton: 0
-  test: 0
---- !u!114 &1961636185
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1961636174}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9b7bdd115ea729b49bc6689fd5a17eda, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraController
-  initialHeight: 1000
-  autoPositionOnStart: 1
-  moveUpKey: 113
-  moveDownKey: 101
-  moveForwardKey: 119
-  moveBackKey: 115
-  moveLeftKey: 97
-  moveRightKey: 100
-  moveSpeed: 100
-  fastMoveSpeed: 500
-  mouseSensitivity: 2
---- !u!114 &1961636186
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1961636174}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 38fc213f40f137d4f9acb5fabbc82af4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::OrbitCameraController
-  orbitSpeed: 2
-  zoomSpeed: 10
-  minZoomDistance: 100
-  maxZoomDistance: 10000
-  smoothTime: 0.3
-  panSpeed: 10
-  isOrbiting: 0
-  orbitTarget: {fileID: 0}
-  currentOrbitDistance: 1000
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

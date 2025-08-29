@@ -51,7 +51,7 @@ public class WorkingKafkaConsumer : MonoBehaviour
     public bool debugMessages = true;
     public bool useSimulatedData = true; // Start with simulated data
     public bool keepRunningInEditor = true; // NEW: Don't stop when losing focus
-    public float simulatedDataInterval = 5f; // Slower updates - less jumping!
+    public float simulatedDataInterval = 5.0f; // Slower updates - less jumping!
     public int maxMessagesPerFrame = 10;
 
     [Header("Status")]
