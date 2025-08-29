@@ -680,13 +680,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AircraftLabelManager
   labelPrefab: {fileID: 0}
   screenCanvas: {fileID: 0}
-  labelScale: 2
-  fontSize: 16
-  constantSizeDistance: 1000
+  labelScale: 1
+  fontSize: 24
+  constantSizeDistance: 750
   verticalOffset: 50
   horizontalOffset: -75
   horizontalDirection: -1
-  textColor: {r: 0, g: 1, b: 1, a: 1}
+  textColor: {r: 0.010021925, g: 1, b: 0, a: 1}
   showDebugInfo: 1
 --- !u!4 &1117215578
 Transform:
