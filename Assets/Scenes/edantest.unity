@@ -680,10 +680,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AircraftLabelManager
   labelPrefab: {fileID: 0}
   screenCanvas: {fileID: 0}
-  labelOffset: 50
-  labelScale: 1
+  labelScale: 2
   fontSize: 16
   constantSizeDistance: 1000
+  verticalOffset: 50
+  horizontalOffset: -75
+  horizontalDirection: -1
+  textColor: {r: 0, g: 1, b: 1, a: 1}
   showDebugInfo: 1
 --- !u!4 &1117215578
 Transform:
@@ -794,6 +797,9 @@ MonoBehaviour:
   flyToController: {fileID: 0}
   cameraHeight: 1000
   cameraDistance: 2000
+  zoomSpeed: 200
+  minCameraHeight: 100
+  maxCameraHeight: 5000
 --- !u!4 &1718900207
 Transform:
   m_ObjectHideFlags: 0

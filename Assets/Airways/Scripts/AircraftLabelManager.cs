@@ -8,10 +8,20 @@ public class AircraftLabelManager : MonoBehaviour
     [Header("Label Settings")]
     public GameObject labelPrefab;
     public Canvas screenCanvas;
-    public float labelOffset = 50f;
-    public float labelScale = 1f;
-    public float fontSize = 16f; // Public font size variable
+    public float labelScale = 2f;
+    public float fontSize = 16f;
     public float constantSizeDistance = 1000f; // Reference distance for constant sizing
+
+    [Header("Label Position")]
+    [Tooltip("Vertical distance above the aircraft")]
+    public float verticalOffset = 50f;
+    [Tooltip("Horizontal distance from the aircraft")]
+    public float horizontalOffset = -75f;
+    [Tooltip("Direction of the horizontal offset (-1 for left, 1 for right)")]
+    public float horizontalDirection = -1f; // -1 for left, 1 for right
+
+    [Header("Label Style")]
+    public Color textColor = new Color(0f, 1f, 1f, 1f); // Bright cyan
 
     [Header("Debug")]
     public bool showDebugInfo = false;
@@ -25,11 +35,10 @@ public class AircraftLabelManager : MonoBehaviour
         mainCamera = Camera.main;
         if (mainCamera == null)
         {
-            mainCamera = FindObjectOfType<Camera>();
+            mainCamera = FindFirstObjectByType<Camera>();
             Debug.LogWarning("Camera.main not found, using first camera found");
         }
-
-        aircraftManager = FindObjectOfType<AircraftManager>();
+        aircraftManager = FindFirstObjectByType<AircraftManager>();
         if (aircraftManager == null)
         {
             Debug.LogError("AircraftManager not found!");
@@ -49,18 +58,36 @@ public class AircraftLabelManager : MonoBehaviour
 
     void CreateScreenCanvas()
     {
+        // Check if canvas already exists
+        if (screenCanvas != null)
+        {
+            return;
+        }
+
         GameObject canvasGO = new GameObject("Aircraft Labels Canvas");
-        screenCanvas = canvasGO.AddComponent<Canvas>();
+        canvasGO.transform.SetParent(transform, false); // Parent to this object for proper cleanup
+
+        Canvas canvas = canvasGO.AddComponent<Canvas>();
+        screenCanvas = canvas;
 
         // Use WorldSpace for constant size control
-        screenCanvas.renderMode = RenderMode.WorldSpace;
-        screenCanvas.sortingOrder = 100;
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvas.sortingOrder = 100;
 
         // Set up canvas for world space
-        RectTransform canvasRect = screenCanvas.GetComponent<RectTransform>();
-        canvasRect.sizeDelta = new Vector2(1920, 1080);
+        RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+        if (canvasRect != null)
+        {
+            canvasRect.sizeDelta = new Vector2(1920, 1080);
+        }
 
+        // Add required components
         canvasGO.AddComponent<GraphicRaycaster>();
+
+        // Add canvas scaler for consistent UI scaling
+        CanvasScaler scaler = canvasGO.AddComponent<CanvasScaler>();
+        scaler.scaleFactor = 1;
+        scaler.dynamicPixelsPerUnit = 100;
 
         Debug.Log("Created world space canvas for aircraft labels");
     }
@@ -137,15 +164,12 @@ public class AircraftLabelManager : MonoBehaviour
             RectTransform rect = labelGO.AddComponent<RectTransform>();
             rect.sizeDelta = new Vector2(120, 60);
 
-            // Add TextMeshProUGUI component
+            // Add TextMeshProUGUI component directly to the label
             TextMeshProUGUI text = labelGO.AddComponent<TextMeshProUGUI>();
-            text.fontSize = fontSize; // Use public font size variable
-            text.color = Color.green;
+            text.fontSize = fontSize;
+            text.color = textColor;
             text.alignment = TextAlignmentOptions.Center;
             text.fontStyle = FontStyles.Bold;
-
-            // Set text background color for visibility (instead of Image component)
-            text.fontMaterial = text.font.material; // Ensure material exists
         }
 
         // Scale label
@@ -164,10 +188,13 @@ public class AircraftLabelManager : MonoBehaviour
         if (labelGO == null) return;
 
         // Update text content
-        TextMeshProUGUI text = labelGO.GetComponent<TextMeshProUGUI>();
+        TextMeshProUGUI text = labelGO.GetComponentInChildren<TextMeshProUGUI>();
         if (text != null && !string.IsNullOrEmpty(aircraft.callsign))
         {
             text.text = $"{aircraft.callsign}\nFL{aircraft.altitude / 100:F0}\n{aircraft.groundSpeed:F0}kts";
+            // Ensure text renders on top
+            text.gameObject.transform.SetAsLastSibling();
+            Canvas.ForceUpdateCanvases();
         }
 
         // Get aircraft world position
@@ -181,10 +208,10 @@ public class AircraftLabelManager : MonoBehaviour
         // Position label in world space with constant size
         if (worldPos != Vector3.zero)
         {
-            // Use your updated offset values (1.5f multiplier) but in world coordinates
-            Vector3 upOffset = Vector3.up * (labelOffset * 1.5f);
-            Vector3 leftOffset = Vector3.left * (labelOffset * 1.5f);
-            Vector3 labelWorldPos = worldPos + upOffset + leftOffset;
+            // Calculate offsets based on the configurable settings
+            Vector3 upOffset = Vector3.up * verticalOffset;
+            Vector3 horizontalOffsetVector = Vector3.right * (horizontalOffset * horizontalDirection);
+            Vector3 labelWorldPos = worldPos + upOffset + horizontalOffsetVector;
 
             labelGO.transform.position = labelWorldPos;
 
@@ -226,9 +253,15 @@ public class AircraftLabelManager : MonoBehaviour
     {
         if (aircraftLabels.ContainsKey(icao24))
         {
-            if (aircraftLabels[icao24] != null)
+            GameObject labelGO = aircraftLabels[icao24];
+            if (labelGO != null)
             {
-                Destroy(aircraftLabels[icao24]);
+                // Clean up all child objects first
+                foreach (Transform child in labelGO.transform)
+                {
+                    Destroy(child.gameObject);
+                }
+                Destroy(labelGO);
             }
             aircraftLabels.Remove(icao24);
             if (showDebugInfo)
@@ -241,7 +274,14 @@ public class AircraftLabelManager : MonoBehaviour
         foreach (var label in aircraftLabels.Values)
         {
             if (label != null)
+            {
+                // Clean up all child objects first
+                foreach (Transform child in label.transform)
+                {
+                    Destroy(child.gameObject);
+                }
                 Destroy(label);
+            }
         }
         aircraftLabels.Clear();
         Debug.Log("Cleared all aircraft labels");
@@ -249,6 +289,32 @@ public class AircraftLabelManager : MonoBehaviour
 
     void OnDestroy()
     {
+        ClearAllLabels();
         CancelInvoke();
+
+        if (screenCanvas != null)
+        {
+            Destroy(screenCanvas.gameObject);
+        }
+    }
+
+    void OnValidate()
+    {
+        UpdateLabelColors();
+    }
+
+    private void UpdateLabelColors()
+    {
+        foreach (var label in aircraftLabels.Values)
+        {
+            if (label != null)
+            {
+                var text = label.GetComponent<TextMeshProUGUI>();
+                if (text != null)
+                {
+                    text.color = textColor;
+                }
+            }
+        }
     }
 }

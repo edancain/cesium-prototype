@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using CesiumForUnity;
+using UnityEngine.InputSystem;
 
 public class ModernAircraftUI : MonoBehaviour
 {
@@ -22,6 +23,11 @@ public class ModernAircraftUI : MonoBehaviour
     public CesiumFlyToController flyToController;
     public float cameraHeight = 1000f;
     public float cameraDistance = 2000f;
+
+    [Header("Zoom Control")]
+    public float zoomSpeed = 200f;
+    public float minCameraHeight = 100f;
+    public float maxCameraHeight = 5000f;
 
     // NEW: Aircraft following
     private string followingAircraftId = null;
@@ -187,6 +193,26 @@ public class ModernAircraftUI : MonoBehaviour
             followingAircraftId = icao24;
             FlyToAircraft(icao24); // Initial fly to
             Debug.Log($"Now following aircraft {icao24}");
+        }
+    }
+
+    void Update()
+    {
+        // Simple scroll wheel zoom when following aircraft
+        if (!string.IsNullOrEmpty(followingAircraftId))
+        {
+            HandleScrollZoom();
+        }
+    }
+
+    void HandleScrollZoom()
+    {
+        // Only handle scroll wheel - no other input
+        float scroll = Mouse.current.scroll.ReadValue().normalized.y;
+        if (scroll != 0)
+        {
+            cameraHeight -= scroll * zoomSpeed;
+            cameraHeight = Mathf.Clamp(cameraHeight, minCameraHeight, maxCameraHeight);
         }
     }
 
