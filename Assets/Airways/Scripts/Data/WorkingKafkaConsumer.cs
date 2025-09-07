@@ -112,26 +112,135 @@ public class WorkingKafkaConsumer : MonoBehaviour
     {
         simulatedAircraft.Clear();
 
-        // ANZ123 (Christchurch, New Zealand)
+        // McMurdo to Antarctica
+        simulatedAircraft["ICE003"] = new SimulatedAircraft(
+            "ICE003", "ICE003",
+            -77.848209, 166.668391, 14000,
+            380, 137, "cat048"
+        );
+
+        simulatedAircraft["ICE004"] = new SimulatedAircraft(
+            "ICE004", "ICE004",
+            -77.871505, 166.976579, -50,
+            0, 85, "cat048"
+        );
+
+        // Around Christchurch (within 150km)
         simulatedAircraft["ANZ123"] = new SimulatedAircraft(
             "ANZ123", "ANZ123",
             -43.475309, 172.547780, 5000,
             420, 90, "cat021"
         );
+        simulatedAircraft["ANZ456"] = new SimulatedAircraft(
+            "ANZ456", "ANZ456",
+            -43.320000, 172.620000, 3500,
+            380, 45, "cat021"
+        );
+        simulatedAircraft["JQ234"] = new SimulatedAircraft(
+            "JQ234", "JQ234",
+            -43.550000, 172.800000, 7500,
+            400, 180, "cat021"
+        );
+        simulatedAircraft["NZ789"] = new SimulatedAircraft(
+            "NZ789", "NZ789",
+            -43.280000, 172.300000, 4200,
+            350, 270, "cat021"
+        );
+        simulatedAircraft["QF345"] = new SimulatedAircraft(
+            "QF345", "QF345",
+            -43.600000, 172.400000, 6000,
+            390, 135, "cat021"
+        );
 
-        // ICE001 (McMurdo Station, Antarctica)
+        // Around New Zealand
+        simulatedAircraft["ANZ201"] = new SimulatedAircraft(
+            "ANZ201", "ANZ201",
+            -41.290139, 174.786670, 8000, // Wellington
+            450, 45, "cat021"
+        );
+        simulatedAircraft["NZ202"] = new SimulatedAircraft(
+            "NZ202", "NZ202",
+            -36.848461, 174.763336, 7500, // Auckland
+            430, 90, "cat021"
+        );
+        simulatedAircraft["JQ505"] = new SimulatedAircraft(
+            "JQ505", "JQ505",
+            -45.021100, 168.662528, 6500, // Queenstown
+            380, 315, "cat021"
+        );
+        simulatedAircraft["NZ303"] = new SimulatedAircraft(
+            "NZ303", "NZ303",
+            -39.465839, 176.871910, 5500, // Napier
+            400, 180, "cat021"
+        );
+        simulatedAircraft["ANZ404"] = new SimulatedAircraft(
+            "ANZ404", "ANZ404",
+            -37.673332, 176.196671, 4800, // Tauranga
+            420, 225, "cat021"
+        );
+        simulatedAircraft["JQ606"] = new SimulatedAircraft(
+            "JQ606", "JQ606",
+            -40.320556, 175.616667, 5200, // Palmerston North
+            375, 135, "cat021"
+        );
+        simulatedAircraft["NZ707"] = new SimulatedAircraft(
+            "NZ707", "NZ707",
+            -46.412079, 168.312988, 4600, // Invercargill
+            390, 270, "cat021"
+        );
+        simulatedAircraft["ANZ808"] = new SimulatedAircraft(
+            "ANZ808", "ANZ808",
+            -38.663333, 177.978333, 6800, // Gisborne
+            410, 90, "cat021"
+        );
+        simulatedAircraft["JQ909"] = new SimulatedAircraft(
+            "JQ909", "JQ909",
+            -44.300000, 171.225000, 5100, // Timaru
+            385, 45, "cat021"
+        );
+        simulatedAircraft["NZ111"] = new SimulatedAircraft(
+            "NZ111", "NZ111",
+            -42.716667, 170.133333, 5900, // Hokitika
+            395, 315, "cat021"
+        );
+        simulatedAircraft["ANZ222"] = new SimulatedAircraft(
+            "ANZ222", "ANZ222",
+            -35.262779, 174.283333, 7200, // Kerikeri
+            425, 180, "cat021"
+        );
+        simulatedAircraft["JQ333"] = new SimulatedAircraft(
+            "JQ333", "JQ333",
+            -41.298889, 173.221111, 6300, // Nelson
+            405, 225, "cat021"
+        );
+        simulatedAircraft["NZ444"] = new SimulatedAircraft(
+            "NZ444", "NZ444",
+            -39.008611, 174.179167, 5400, // New Plymouth
+            415, 135, "cat021"
+        );
+        simulatedAircraft["ANZ555"] = new SimulatedAircraft(
+            "ANZ555", "ANZ555",
+            -37.866667, 175.332222, 4900, // Hamilton
+            435, 270, "cat021"
+        );
+        simulatedAircraft["JQ666"] = new SimulatedAircraft(
+            "JQ666", "JQ666",
+            -44.973333, 171.081667, 5700, // Oamaru
+            380, 90, "cat021"
+        );
+
+        // Heading to Antarctica
         simulatedAircraft["ICE001"] = new SimulatedAircraft(
             "ICE001", "ICE001",
-            -77.8419, 166.6863, 15000,
-            200, 270, "cat048"
+            -60.8419, 166.6863, 15000, // Halfway to Antarctica
+            400, 180, "cat048"
+        );
+        simulatedAircraft["ICE002"] = new SimulatedAircraft(
+            "ICE002", "ICE002",
+            -65.3500, 170.2500, 16000, // Closer to Antarctica
+            380, 170, "cat048"
         );
 
-        // LH456 (Berlin, Germany)
-        simulatedAircraft["LH456"] = new SimulatedAircraft(
-            "LH456", "LH456",
-            52.5200, 13.4050, 37000,
-            480, 170, "cat021"
-        );
 
         Debug.Log($"WorkingKafkaConsumer: Initialized {simulatedAircraft.Count} simulated aircraft");
     }

@@ -162,8 +162,8 @@ public class ModernAircraftUI : MonoBehaviour
                 }
 
                 string buttonText = $"{aircraft.callsign}\n" +
-                                  $"FL{aircraft.altitude / 100:F0} • {aircraft.groundSpeed:F0}kts\n" +
-                                  $"HDG {aircraft.heading:F0}°";
+                                  $"FL{aircraft.altitude / 100:F0}\n" +
+                                  $"{aircraft.groundSpeed:F0}kts • HDG {aircraft.heading:F0}°";
 
                 if (GUILayout.Button(buttonText, currentButtonStyle, GUILayout.Height(buttonHeight + 20)))
                 {

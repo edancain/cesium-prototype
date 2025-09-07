@@ -145,7 +145,7 @@ public class AircraftUIManager : MonoBehaviour
 
         if (buttonText != null && !string.IsNullOrEmpty(aircraft.callsign))
         {
-            buttonText.text = aircraft.callsign;
+            buttonText.text = $"{aircraft.callsign}\nFL{aircraft.altitude / 100:F0}";
             Debug.Log($"Updated button text for {aircraft.callsign} ({icao24})");
         }
     }
@@ -183,11 +183,11 @@ public class AircraftUIManager : MonoBehaviour
 
         Debug.Log($"Button GameObject created: {buttonObj.name}");
 
-        // Set up button text - ONLY CALLSIGN
+        // Set up button text with callsign and altitude
         TextMeshProUGUI buttonText = buttonObj.GetComponentInChildren<TextMeshProUGUI>();
         if (buttonText != null)
         {
-            buttonText.text = aircraft.callsign;
+            buttonText.text = $"{aircraft.callsign}\nFL{aircraft.altitude / 100:F0}";
             Debug.Log($"Button text set to: '{buttonText.text}'");
         }
         else
